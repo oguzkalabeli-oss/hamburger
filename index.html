@@ -1,1 +1,274 @@
-<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Burger Map 🍔</title><style>html,body{margin:0;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#dcecf2}header{height:62px;position:fixed;top:0;left:0;right:0;z-index:5;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid #ddd}.brand{font-size:18px;font-weight:800}.actions button,.zoom button{border:1px solid #ddd;background:#fff;border-radius:10px;padding:8px 11px;font-weight:700}.actions{display:flex;gap:7px}#viewport{position:fixed;inset:62px 0 0;overflow:hidden;touch-action:none;background:#dcecf2;cursor:grab}#viewport.dragging{cursor:grabbing}#world{position:absolute;left:50%;top:50%;transform-origin:center}#map{position:absolute;width:100%;height:100%;display:block;user-select:none}#pins{position:absolute;inset:0}.pin{position:absolute;transform:translate(-50%,-100%);border:0;background:none;padding:0;font-size:30px;cursor:pointer;z-index:3}.zoom{position:fixed;right:13px;bottom:17px;z-index:6;display:flex;flex-direction:column;gap:7px}.zoom button{width:44px;height:44px;font-size:23px}.sheet{position:fixed;left:50%;bottom:13px;transform:translateX(-50%);width:min(94vw,440px);max-height:calc(100vh - 90px);overflow:auto;background:#fff;border-radius:22px;box-shadow:0 14px 50px #0004;z-index:10;padding:18px;display:none}.sheet h2{margin:0 40px 13px 0}.close{position:absolute;right:13px;top:13px;border:0;border-radius:50%;width:32px;height:32px}.label{font-size:11px;font-weight:800;color:#777;margin:10px 0 5px}input,textarea{width:100%;padding:11px;border:1px solid #ddd;border-radius:11px;font:inherit;box-sizing:border-box}textarea{height:80px}.stars button{border:0;background:none;font-size:29px;color:#ccc}.stars button.active{color:#111}.photo{width:75px;height:75px;object-fit:cover;border-radius:10px;display:none}.buttons{display:flex;gap:8px;margin-top:14px}.buttons button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:800}.primary{background:#111;color:#fff}.secondary{background:#eee}.detail-photo{width:100%;height:190px;object-fit:cover;border-radius:14px;display:none}.placeholder{height:120px;border-radius:14px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:42px}.tip{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:4;background:#111;color:#fff;border-radius:20px;padding:8px 13px;font-size:12px}</style></head><body><header><div class="brand">🍔 Burger Map</div><div class="actions"><button id="home">Dünya</button><button id="clear">Temizle</button></div></header><div id="viewport"><div id="world"><img id="map" src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" alt="Vektörel dünya haritası"><div id="pins"></div></div></div><div class="tip" id="tip">Haritaya tıkla → hamburgerci ekle</div><div class="zoom"><button id="plus">+</button><button id="minus">−</button></div><section class="sheet" id="editor"><button class="close" id="editorClose">×</button><h2>Yeni hamburgerci</h2><div class="label">MEKAN ADI</div><input id="name" placeholder="Örn. Zula Burger"><div class="label">PUAN</div><div class="stars" id="stars"><button data-v="1">★</button><button data-v="2">★</button><button data-v="3">★</button><button data-v="4">★</button><button data-v="5">★</button></div><div class="label">GÖRSEL</div><button id="photoButton">📷 Fotoğraf seç</button><img id="preview" class="photo"><input id="photo" type="file" accept="image/*" hidden><div class="label">YORUM</div><textarea id="comment" placeholder="Yorumun..."></textarea><div class="buttons"><button class="secondary" id="cancel">Vazgeç</button><button class="primary" id="save">Kaydet</button></div></section><section class="sheet" id="detail"><button class="close" id="detailClose">×</button><img id="detailPhoto" class="detail-photo"><div id="placeholder" class="placeholder">🍔</div><h2 id="detailName"></h2><div id="detailStars" class="stars"></div><p id="detailComment"></p><small id="detailMeta"></small><div class="buttons"><button class="secondary" id="delete">Mekanı sil</button><button class="primary" id="detailClose2">Kapat</button></div></section><script>const KEY='burgerMap_final';const vp=document.getElementById('viewport'),world=document.getElementById('world'),pins=document.getElementById('pins');let W,H,s=1,x=0,y=0,downX,downY,drag=false,moved=false,sel=null,rating=5,photo='';function data(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return[]}}function store(a){localStorage.setItem(KEY,JSON.stringify(a))}function setup(){W=Math.max(vp.clientWidth,vp.clientHeight*2.05);H=W/2;world.style.width=W+'px';world.style.height=H+'px';s=1;x=y=0;apply()}function apply(){world.style.transform=`translate(calc(-50% + ${x}px),calc(-50% + ${y}px)) scale(${s})`}function clamp(){let mx=Math.max(0,(W*s-vp.clientWidth)/2),my=Math.max(0,(H*s-vp.clientHeight)/2);x=Math.max(-mx,Math.min(mx,x));y=Math.max(-my,Math.min(my,y))}function zoom(n,cx=vp.clientWidth/2,cy=vp.clientHeight/2){n=Math.max(1,Math.min(16,n));let r=vp.getBoundingClientRect(),ox=(cx-r.left-r.width/2-x)/s,oy=(cy-r.top-r.height/2-y)/s;s=n;x=cx-r.left-r.width/2-ox*s;y=cy-r.top-r.height/2-oy*s;clamp();apply()}function point(cx,cy){let r=vp.getBoundingClientRect();return{x:Math.max(0,Math.min(100,(((cx-r.left-r.width/2-x)/s+W/2)/W)*100)),y:Math.max(0,Math.min(100,(((cy-r.top-r.height/2-y)/s+H/2)/H)*100))}}function render(){pins.innerHTML='';data().forEach(p=>{let b=document.createElement('button');b.className='pin';b.textContent='🍔';b.style.left=p.x+'%';b.style.top=p.y+'%';b.onclick=e=>{e.stopPropagation();detail(p.id)};b.onpointerdown=e=>e.stopPropagation();pins.appendChild(b)})}function setRating(v){rating=v;document.querySelectorAll('#stars button').forEach(b=>b.classList.toggle('active',+b.dataset.v<=v))}document.querySelectorAll('#stars button').forEach(b=>b.onclick=()=>setRating(+b.dataset.v));function editor(p){sel=p;rating=5;photo='';setRating(5);name.value='';comment.value='';preview.style.display='none';photoInput.value='';document.getElementById('editor').style.display='block';name.focus()}const name=document.getElementById('name'),comment=document.getElementById('comment'),preview=document.getElementById('preview'),photoInput=document.getElementById('photo');document.getElementById('photoButton').onclick=()=>photoInput.click();photoInput.onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{photo=r.result;preview.src=photo;preview.style.display='inline-block'};r.readAsDataURL(f)};document.getElementById('save').onclick=()=>{if(!name.value.trim())return alert('Mekan adı gir.');let a=data();a.push({id:Date.now().toString(36)+Math.random(),name:name.value.trim(),rating,photo,comment:comment.value.trim(),x:sel.x,y:sel.y});try{store(a)}catch(e){return alert('Fotoğraf çok büyük. Daha küçük bir fotoğraf seç.')}closeEditor();render()};function closeEditor(){document.getElementById('editor').style.display='none'}function detail(id){let p=data().find(q=>q.id===id);if(!p)return;sel={id};detailName.textContent=p.name;detailStars.textContent='★'.repeat(p.rating)+'☆'.repeat(5-p.rating);detailComment.textContent=p.comment||'Yorum eklenmemiş.';detailMeta.textContent='Puan '+p.rating+'/5';if(p.photo){detailPhoto.src=p.photo;detailPhoto.style.display='block';placeholder.style.display='none'}else{detailPhoto.style.display='none';placeholder.style.display='flex'}document.getElementById('detail').style.display='block'}const detailName=document.getElementById('detailName'),detailStars=document.getElementById('detailStars'),detailComment=document.getElementById('detailComment'),detailMeta=document.getElementById('detailMeta'),detailPhoto=document.getElementById('detailPhoto'),placeholder=document.getElementById('placeholder');function closeDetail(){document.getElementById('detail').style.display='none';sel=null}document.getElementById('delete').onclick=()=>{if(sel&&confirm('Bu mekanı silmek istiyor musun?')){store(data().filter(p=>p.id!==sel.id));closeDetail();render()}};editorClose.onclick=closeEditor;cancel.onclick=closeEditor;detailClose.onclick=closeDetail;detailClose2.onclick=closeDetail;plus.onclick=()=>zoom(s*1.35);minus.onclick=()=>zoom(s/1.35);home.onclick=()=>{s=1;x=y=0;apply()};clear.onclick=()=>{if(confirm('Tüm mekanlar silinsin mi?')){localStorage.removeItem(KEY);render()}};vp.onwheel=e=>{e.preventDefault();zoom(s*(e.deltaY<0?1.22:.82),e.clientX,e.clientY)};vp.onpointerdown=e=>{if(e.pointerType==='touch')return;downX=e.clientX;downY=e.clientY;drag=true;moved=false;vp.classList.add('dragging');vp.setPointerCapture(e.pointerId)};vp.onpointermove=e=>{if(e.pointerType==='touch'||!drag)return;let dx=e.clientX-downX,dy=e.clientY-downY;if(Math.hypot(dx,dy)>4)moved=true;x+=dx;y+=dy;clamp();apply();downX=e.clientX;downY=e.clientY};vp.onpointerup=e=>{if(e.pointerType==='touch')return;vp.classList.remove('dragging');if(!moved)editor(point(e.clientX,e.clientY));drag=false};let touches=[];vp.ontouchstart=e=>{touches=[...e.touches];if(touches.length===1){downX=touches[0].clientX;downY=touches[0].clientY;moved=false}else if(touches.length===2){pinchDist=Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);pinchScale=s}};let pinchDist=0,pinchScale=1;vp.ontouchmove=e=>{e.preventDefault();let t=[...e.touches];if(t.length===2&&touches.length>=2){let d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY),mx=(t[0].clientX+t[1].clientX)/2,my=(t[0].clientY+t[1].clientY)/2;zoom(pinchScale*d/pinchDist,mx,my)}else if(t.length===1&&touches.length===1){let dx=t[0].clientX-touches[0].clientX,dy=t[0].clientY-touches[0].clientY;if(Math.hypot(t[0].clientX-downX,t[0].clientY-downY)>7)moved=true;x+=dx;y+=dy;clamp();apply()}touches=t};vp.ontouchend=e=>{if(e.touches.length===0&&touches.length===1&&!moved)editor(point(touches[0].clientX,touches[0].clientY));touches=[...e.touches]};setup();render();</script></body></html>
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f2">
+<title>Burger Map</title>
+<style>
+:root{
+ --bg:#e8f0f2;--panel:#fff;--text:#202020;--muted:#777;
+ --water:#dfecef;--land:#e8e7e1;--border:#aaa99f;--admin:#c5c4bb;
+ --accent:#e04b32;--star:#f0a51a;--shadow:0 14px 45px #0003
+}
+body[data-theme="dark"]{
+ --bg:#20252a;--panel:#292e33;--text:#f4f4f2;--muted:#aaa;
+ --water:#18252b;--land:#343a3d;--border:#687075;--admin:#555d61;
+ --accent:#ff7057;--star:#ffc04a;--shadow:0 14px 45px #0007
+}
+body[data-theme="cream"]{
+ --bg:#eee7d8;--panel:#fffaf0;--text:#302c27;--muted:#877e70;
+ --water:#e1e4d9;--land:#eee9dc;--border:#b8b0a0;--admin:#d1c8b7;
+ --accent:#b8663c;--star:#d8941b;--shadow:0 14px 45px #0002
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea{font:inherit}
+header{height:62px;position:fixed;top:0;left:0;right:0;z-index:100;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent);display:flex;align-items:center;justify-content:space-between;padding:0 15px}
+.brand{font-size:18px;font-weight:850;display:flex;align-items:center;gap:8px}.brand b{font-size:23px}
+.actions{display:flex;gap:7px}.actions button{border:1px solid color-mix(in srgb,var(--text) 13%,transparent);background:var(--panel);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:750}
+#viewport{position:fixed;inset:62px 0 0;overflow:hidden;touch-action:none;background:var(--water);cursor:grab}
+#viewport.dragging{cursor:grabbing}
+#world{position:absolute;left:50%;top:50%;transform-origin:center center}
+#map{position:absolute;left:0;top:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;filter:none}
+#pins{position:absolute;inset:0}
+.pin{position:absolute;transform:translate(-50%,-100%);border:0;background:none;padding:0;font-size:29px;line-height:1;filter:drop-shadow(0 2px 3px #0005);cursor:pointer;z-index:20}
+.pin:hover{transform:translate(-50%,-100%) scale(1.12)}
+.city{position:absolute;transform:translate(-50%,-50%);font-size:11px;font-weight:700;white-space:nowrap;color:var(--text);text-shadow:0 1px 3px var(--panel),0 -1px 3px var(--panel);pointer-events:none;display:none;z-index:8}
+.city-dot{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--text);margin-right:4px;vertical-align:middle}
+@media(min-width:700px){.city{font-size:12px}}
+#world.city-mode .city{display:block}
+.tip{position:fixed;z-index:80;top:73px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--panel);padding:8px 13px;border-radius:999px;font-size:12px;pointer-events:none;white-space:nowrap;transition:opacity .4s}
+.zoom{position:fixed;right:13px;bottom:17px;z-index:90;display:flex;flex-direction:column;gap:7px}
+.zoom button{width:44px;height:44px;border:0;border-radius:13px;background:var(--panel);color:var(--text);box-shadow:0 4px 18px #0002;font-size:23px;font-weight:700}
+.sheet{position:fixed;left:50%;bottom:13px;transform:translateX(-50%);width:min(94vw,450px);max-height:calc(100vh - 90px);overflow:auto;background:var(--panel);color:var(--text);border-radius:22px;box-shadow:var(--shadow);z-index:200;padding:18px}
+.sheet h2{margin:0 40px 13px 0;font-size:20px}
+.close{position:absolute;right:13px;top:13px;width:32px;height:32px;border:0;border-radius:50%;background:color-mix(in srgb,var(--text) 9%,transparent);color:var(--text);font-size:19px}
+.label{font-size:11px;font-weight:850;color:var(--muted);margin:10px 0 5px}
+input,textarea{width:100%;padding:11px 12px;border:1px solid color-mix(in srgb,var(--text) 14%,transparent);background:color-mix(in srgb,var(--panel) 92%,var(--bg));color:var(--text);border-radius:11px;outline:none}
+textarea{height:76px;resize:vertical}
+.criteria{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.criteria>div{background:color-mix(in srgb,var(--text) 5%,transparent);padding:9px;border-radius:12px}
+.criteria b{display:block;font-size:12px;margin-bottom:5px}.mini-stars{display:flex;gap:0}.mini-stars button{border:0;background:none;color:#c7c7c2;padding:0;font-size:21px;cursor:pointer}.mini-stars button.active{color:var(--star)}
+.photo-row{display:flex;gap:9px;align-items:center}.photo-btn{border:1px dashed color-mix(in srgb,var(--text) 30%,transparent);background:color-mix(in srgb,var(--text) 4%,transparent);color:var(--text);border-radius:12px;padding:11px 13px;font-weight:750}.preview{display:none;width:62px;height:62px;border-radius:11px;object-fit:cover}
+.buttons{display:flex;gap:8px;margin-top:14px}.buttons button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:800}.secondary{background:color-mix(in srgb,var(--text) 9%,transparent);color:var(--text)}.primary{background:var(--text);color:var(--panel)}
+.detail-photo{width:100%;height:190px;object-fit:cover;border-radius:14px;margin-bottom:12px;display:none}.placeholder{height:120px;border-radius:14px;background:color-mix(in srgb,var(--text) 6%,transparent);display:flex;align-items:center;justify-content:center;font-size:42px;margin-bottom:12px}
+.detail-name{font-size:22px;font-weight:850;margin-right:38px}.detail-overall{font-size:15px;font-weight:800;margin:4px 0 12px}.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.score{background:color-mix(in srgb,var(--text) 6%,transparent);border-radius:11px;padding:9px}.score small{display:block;color:var(--muted);font-size:10px;font-weight:800}.score b{font-size:18px}.detail-comment{white-space:pre-wrap;line-height:1.5;margin:12px 0 5px}.meta{font-size:12px;color:var(--muted)}
+.themes{display:flex;gap:5px;align-items:center}.theme{width:20px;height:20px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 0 0 1px #999;cursor:pointer}.t-light{background:#f5f5f2}.t-dark{background:#252a2e}.t-cream{background:#eee7d8}
+</style>
+</head>
+<body data-theme="light">
+
+<header>
+  <div class="brand"><b>🍔</b> Burger Map</div>
+  <div class="actions">
+    <div class="themes" title="Harita teması">
+      <button class="theme t-light" data-theme="light"></button>
+      <button class="theme t-dark" data-theme="dark"></button>
+      <button class="theme t-cream" data-theme="cream"></button>
+    </div>
+    <button id="home">Dünya</button>
+    <button id="clear">Temizle</button>
+  </div>
+</header>
+
+<div id="viewport">
+  <div id="world">
+    <img id="map" alt="Vektörel dünya haritası"
+      src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg">
+    <div id="pins"></div>
+  </div>
+</div>
+
+<div class="tip" id="tip">Haritaya tıkla → hamburgerci ekle</div>
+
+<div class="zoom"><button id="plus">+</button><button id="minus">−</button></div>
+
+<section class="sheet" id="editor" style="display:none">
+  <button class="close" id="editorClose">×</button>
+  <h2>Yeni hamburgerci</h2>
+
+  <div class="label">MEKAN ADI</div>
+  <input id="name" placeholder="Örn. Zula Burger">
+
+  <div class="label">PUANLAMA</div>
+  <div class="criteria">
+    <div><b>Lezzet</b><div class="mini-stars" data-key="taste"></div></div>
+    <div><b>Fiyat / Performans</b><div class="mini-stars" data-key="value"></div></div>
+    <div><b>Mekan / Hizmet</b><div class="mini-stars" data-key="place"></div></div>
+  </div>
+
+  <div class="label">GÖRSEL</div>
+  <div class="photo-row">
+    <button class="photo-btn" id="photoButton">📷 Fotoğraf seç</button>
+    <img class="preview" id="preview">
+    <input id="photo" type="file" accept="image/*" hidden>
+  </div>
+
+  <div class="label">YORUM</div>
+  <textarea id="comment" placeholder="Hamburger hakkındaki yorumun..."></textarea>
+
+  <div class="buttons">
+    <button class="secondary" id="cancel">Vazgeç</button>
+    <button class="primary" id="save">Mekanı kaydet</button>
+  </div>
+</section>
+
+<section class="sheet" id="detail" style="display:none">
+  <button class="close" id="detailClose">×</button>
+  <img class="detail-photo" id="detailPhoto">
+  <div class="placeholder" id="placeholder">🍔</div>
+  <div class="detail-name" id="detailName"></div>
+  <div class="detail-overall" id="detailOverall"></div>
+  <div class="detail-grid">
+    <div class="score"><small>LEZZET</small><b id="dTaste"></b></div>
+    <div class="score"><small>F/P</small><b id="dValue"></b></div>
+    <div class="score"><small>MEKAN</small><b id="dPlace"></b></div>
+  </div>
+  <p class="detail-comment" id="detailComment"></p>
+  <div class="meta">3 kriterin ortalaması genel puanı oluşturur.</div>
+  <div class="buttons">
+    <button class="secondary" id="delete">Mekanı sil</button>
+    <button class="primary" id="detailClose2">Kapat</button>
+  </div>
+</section>
+
+<script>
+const KEY="burgerMap_v3";
+const cityData=[
+["İstanbul",41.01,28.97],["Bursa",40.19,29.06],["Ankara",39.93,32.86],["İzmir",38.42,27.14],
+["Thessaloniki",40.64,22.94],["Athens",37.98,23.73],["Sofia",42.70,23.32],["Rome",41.90,12.50],
+["Paris",48.86,2.35],["London",51.51,-0.13],["Berlin",52.52,13.41],["Amsterdam",52.37,4.90],
+["Madrid",40.42,-3.70],["Barcelona",41.39,2.17],["Vienna",48.21,16.37],["Prague",50.08,14.44],
+["New York",40.71,-74.01],["Los Angeles",34.05,-118.24],["Chicago",41.88,-87.63],["Miami",25.76,-80.19],
+["Toronto",43.65,-79.38],["Mexico City",19.43,-99.13],["São Paulo",-23.55,-46.63],["Buenos Aires",-34.60,-58.38],
+["Cape Town",-33.92,18.42],["Cairo",30.04,31.24],["Dubai",25.20,55.27],["Mumbai",19.08,72.88],
+["Singapore",1.35,103.82],["Bangkok",13.76,100.50],["Tokyo",35.68,139.65],["Seoul",37.57,126.98],
+["Beijing",39.90,116.40],["Sydney",-33.87,151.21],["Melbourne",-37.81,144.96]
+];
+
+const viewport=document.getElementById("viewport"),world=document.getElementById("world"),pins=document.getElementById("pins");
+let W=0,H=0,scale=1,panX=0,panY=0,selected=null,photo="",moved=false,dragX=0,dragY=0,dragging=false;
+let scores={taste:5,value:5,place:5},touches=[],pinchDist=0,pinchScale=1;
+
+function getPlaces(){try{return JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){return[]}}
+function savePlaces(x){localStorage.setItem(KEY,JSON.stringify(x))}
+function avg(p){return ((p.taste+p.value+p.place)/3).toFixed(1)}
+
+function setup(){
+ const vw=viewport.clientWidth,vh=viewport.clientHeight;
+ W=Math.max(vw,vh*2.05);H=W/2;
+ world.style.width=W+"px";world.style.height=H+"px";
+ scale=1;panX=0;panY=0;apply();renderCities();
+}
+function apply(){
+ world.style.transform=`translate(calc(-50% + ${panX}px),calc(-50% + ${panY}px)) scale(${scale})`;
+ world.classList.toggle("city-mode",scale>=2.2);
+}
+function clamp(){
+ const maxX=Math.max(0,(W*scale-viewport.clientWidth)/2),maxY=Math.max(0,(H*scale-viewport.clientHeight)/2);
+ panX=Math.max(-maxX,Math.min(maxX,panX));panY=Math.max(-maxY,Math.min(maxY,panY));
+}
+function zoomAt(next,x=viewport.clientWidth/2,y=viewport.clientHeight/2){
+ next=Math.max(1,Math.min(16,next));const r=viewport.getBoundingClientRect();
+ const ox=(x-r.left-r.width/2-panX)/scale,oy=(y-r.top-r.height/2-panY)/scale;
+ scale=next;panX=x-r.left-r.width/2-ox*scale;panY=y-r.top-r.height/2-oy*scale;clamp();apply();
+}
+function getMapPoint(cx,cy){
+ const r=viewport.getBoundingClientRect();
+ return{x:Math.max(0,Math.min(100,((cx-r.left-r.width/2-panX)/scale+W/2)/W*100)),
+ y:Math.max(0,Math.min(100,((cy-r.top-r.height/2-panY)/scale+H/2)/H*100))}
+}
+function renderCities(){
+ document.querySelectorAll(".city").forEach(x=>x.remove());
+ cityData.forEach(([name,lat,lon])=>{
+   const d=document.createElement("div");d.className="city";
+   d.style.left=((lon+180)/360*100)+"%";d.style.top=((90-lat)/180*100)+"%";
+   d.innerHTML='<span class="city-dot"></span>'+name;pins.appendChild(d);
+ });
+}
+function renderPins(){
+ pins.querySelectorAll(".pin").forEach(x=>x.remove());
+ getPlaces().forEach(p=>{
+   const b=document.createElement("button");b.className="pin";b.type="button";b.textContent="🍔";b.title=p.name;
+   b.style.left=p.x+"%";b.style.top=p.y+"%";
+   b.onpointerdown=e=>e.stopPropagation();b.onclick=e=>{e.stopPropagation();showDetail(p.id)};pins.appendChild(b);
+ });
+}
+function buildStars(){
+ document.querySelectorAll(".mini-stars").forEach(box=>{
+   box.innerHTML="";
+   const key=box.dataset.key;
+   for(let i=1;i<=5;i++){const b=document.createElement("button");b.textContent="★";b.dataset.v=i;b.onclick=()=>{scores[key]=i;buildStars()};b.classList.toggle("active",i<=scores[key]);box.appendChild(b)}
+ });
+}
+function openEditor(point){
+ selected=point;photo="";scores={taste:5,value:5,place:5};buildStars();
+ document.getElementById("name").value="";document.getElementById("comment").value="";
+ document.getElementById("photo").value="";document.getElementById("preview").style.display="none";
+ document.getElementById("editor").style.display="block";setTimeout(()=>document.getElementById("name").focus(),30);
+}
+function closeEditor(){document.getElementById("editor").style.display="none"}
+document.getElementById("photoButton").onclick=()=>document.getElementById("photo").click();
+document.getElementById("photo").onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();r.onload=()=>{photo=r.result;const p=document.getElementById("preview");p.src=photo;p.style.display="block"};r.readAsDataURL(f);
+};
+document.getElementById("save").onclick=()=>{
+ const name=document.getElementById("name").value.trim();if(!name){alert("Mekan adı gir.");return}
+ const places=getPlaces();places.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),name,taste:scores.taste,value:scores.value,place:scores.place,photo,comment:document.getElementById("comment").value.trim(),x:selected.x,y:selected.y});
+ try{savePlaces(places)}catch(e){alert("Fotoğraf çok büyük. Daha küçük bir fotoğraf seç.");return}
+ closeEditor();renderPins();
+};
+function showDetail(id){
+ const p=getPlaces().find(x=>x.id===id);if(!p)return;selected={id};
+ document.getElementById("detailName").textContent=p.name;
+ document.getElementById("detailOverall").textContent="Genel puan  "+avg(p)+" / 5";
+ document.getElementById("dTaste").textContent=p.taste+"/5";document.getElementById("dValue").textContent=p.value+"/5";document.getElementById("dPlace").textContent=p.place+"/5";
+ document.getElementById("detailComment").textContent=p.comment||"Yorum eklenmemiş.";
+ const im=document.getElementById("detailPhoto"),ph=document.getElementById("placeholder");
+ if(p.photo){im.src=p.photo;im.style.display="block";ph.style.display="none"}else{im.style.display="none";ph.style.display="flex"}
+ document.getElementById("detail").style.display="block";
+}
+function closeDetail(){document.getElementById("detail").style.display="none";selected=null}
+document.getElementById("delete").onclick=()=>{if(selected&&selected.id&&confirm("Bu mekanı silmek istiyor musun?")){savePlaces(getPlaces().filter(p=>p.id!==selected.id));closeDetail();renderPins()}};
+document.getElementById("editorClose").onclick=closeEditor;document.getElementById("cancel").onclick=closeEditor;document.getElementById("detailClose").onclick=closeDetail;document.getElementById("detailClose2").onclick=closeDetail;
+document.getElementById("plus").onclick=()=>zoomAt(scale*1.35);document.getElementById("minus").onclick=()=>zoomAt(scale/1.35);
+document.getElementById("home").onclick=()=>{scale=1;panX=0;panY=0;apply()};
+document.getElementById("clear").onclick=()=>{if(confirm("Tüm hamburger mekanları silinsin mi?")){localStorage.removeItem(KEY);renderPins()}};
+document.querySelectorAll(".theme").forEach(b=>b.onclick=()=>{document.body.dataset.theme=b.dataset.theme;localStorage.setItem("burgerTheme",b.dataset.theme)});
+
+viewport.addEventListener("wheel",e=>{e.preventDefault();zoomAt(scale*(e.deltaY<0?1.22:.82),e.clientX,e.clientY)},{passive:false});
+viewport.addEventListener("pointerdown",e=>{if(e.pointerType==="touch")return;dragX=e.clientX;dragY=e.clientY;dragging=true;moved=false;viewport.classList.add("dragging");viewport.setPointerCapture(e.pointerId)});
+viewport.addEventListener("pointermove",e=>{if(e.pointerType==="touch"||!dragging)return;const dx=e.clientX-dragX,dy=e.clientY-dragY;if(Math.hypot(dx,dy)>4)moved=true;panX+=dx;panY+=dy;clamp();apply();dragX=e.clientX;dragY=e.clientY});
+viewport.addEventListener("pointerup",e=>{if(e.pointerType==="touch")return;viewport.classList.remove("dragging");if(!moved)openEditor(getMapPoint(e.clientX,e.clientY));dragging=false});
+
+viewport.addEventListener("touchstart",e=>{
+ touches=[...e.touches];
+ if(touches.length===1){dragX=touches[0].clientX;dragY=touches[0].clientY;moved=false}
+ if(touches.length===2){pinchDist=Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);pinchScale=scale}
+},{passive:false});
+viewport.addEventListener("touchmove",e=>{
+ e.preventDefault();const c=[...e.touches];
+ if(c.length===2&&touches.length>=2){
+  const dist=Math.hypot(c[0].clientX-c[1].clientX,c[0].clientY-c[1].clientY),cx=(c[0].clientX+c[1].clientX)/2,cy=(c[0].clientY+c[1].clientY)/2;
+  zoomAt(pinchScale*(dist/pinchDist),cx,cy);
+ }else if(c.length===1&&touches.length===1){
+  const dx=c[0].clientX-touches[0].clientX,dy=c[0].clientY-touches[0].clientY;
+  if(Math.hypot(c[0].clientX-dragX,c[0].clientY-dragY)>7)moved=true;
+  panX+=dx;panY+=dy;clamp();apply();
+ }
+ touches=c;
+},{passive:false});
+viewport.addEventListener("touchend",e=>{
+ if(e.touches.length===0&&touches.length===1&&!moved)openEditor(getMapPoint(touches[0].clientX,touches[0].clientY));
+ touches=[...e.touches];
+},{passive:false});
+
+document.body.dataset.theme=localStorage.getItem("burgerTheme")||"light";
+buildStars();setup();renderPins();
+setTimeout(()=>document.getElementById("tip").style.opacity="0",4000);
+window.addEventListener("resize",()=>{setup();renderPins()});
+</script>
+</body>
+</html>
